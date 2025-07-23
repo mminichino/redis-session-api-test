@@ -10,8 +10,7 @@ public class RetryProperties {
     private int maxAttempts = 5;
     private long delay = 1000;
     private double multiplier = 2.0;
-    
-    // Getters and setters
+
     public int getMaxAttempts() {
         return maxAttempts;
     }

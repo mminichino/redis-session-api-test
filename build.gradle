@@ -2,11 +2,11 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.1.0'
     id 'io.spring.dependency-management' version '1.1.0'
+    id 'de.undercouch.download' version '5.4.0'
 }
 
 group = 'com.codelry.demo'
 version = '1.0-SNAPSHOT'
-sourceCompatibility = '17'
 
 repositories {
     mavenCentral()
@@ -17,6 +17,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.boot:spring-boot-starter-json'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.retry:spring-retry'
     implementation 'org.springframework.boot:spring-boot-starter-aop'
     implementation 'redis.clients:jedis'
@@ -24,8 +25,495 @@ dependencies {
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation platform('org.testcontainers:testcontainers-bom:1.19.0')
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:testcontainers'
 }
 
 test {
     useJUnitPlatform()
+}
+
+ext {
+    jmeterVersion = '5.6.2'
+    jmeterTestFile = 'SessionAPITest.jmx'
+    jmeterResultsFile = 'raw-results.jtl'
+    jmeterReportDir = 'jmeter-run-report'
+}
+
+def getJMeterHome() {
+    return System.getenv('JMETER_HOME') ?: layout.buildDirectory.dir("jmeter").get().asFile.absolutePath
+}
+
+bootBuildImage {
+    imageName = "${project.group}/${project.name}:${project.version}"
+    tags = ["${project.group}/${project.name}:latest"] as Iterable<? extends String>
+    
+    environment = [
+        "BP_JVM_VERSION": "17"
+    ]
+}
+
+tasks.register('downloadJMeter', Download) {
+    group = 'jmeter'
+    description = 'Download Apache JMeter'
+    
+    onlyIf { 
+        def jmeterHome = getJMeterHome()
+        !file("${jmeterHome}/bin/jmeter").exists() && System.getenv('JMETER_HOME') == null 
+    }
+    
+    src "https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-${jmeterVersion}.zip"
+    dest layout.buildDirectory.file("apache-jmeter-${jmeterVersion}.zip")
+    overwrite false
+}
+
+tasks.register('extractJMeter', Copy) {
+    group = 'jmeter'
+    description = 'Extract Apache JMeter'
+    dependsOn downloadJMeter
+    
+    onlyIf { 
+        def jmeterHome = getJMeterHome()
+        !file("${jmeterHome}/bin/jmeter").exists() && System.getenv('JMETER_HOME') == null 
+    }
+    
+    from zipTree(layout.buildDirectory.file("apache-jmeter-${jmeterVersion}.zip"))
+    into layout.buildDirectory
+    
+    doLast {
+        def jmeterHome = getJMeterHome()
+        def buildDirPath = layout.buildDirectory.get().asFile.absolutePath
+        file("${buildDirPath}/apache-jmeter-${jmeterVersion}").renameTo(file(jmeterHome))
+        // Make jmeter executable
+        file("${jmeterHome}/bin/jmeter").setExecutable(true)
+        file("${jmeterHome}/bin/jmeter.sh").setExecutable(true)
+    }
+}
+
+tasks.register('setupJMeter') {
+    group = 'jmeter'
+    description = 'Setup JMeter for testing'
+    
+    if (System.getenv('JMETER_HOME') == null) {
+        dependsOn extractJMeter
+    }
+    
+    doLast {
+        def jmeterHome = getJMeterHome()
+        def jmeterBin = "${jmeterHome}/bin/jmeter"
+        if (!file(jmeterBin).exists()) {
+            throw new GradleException("JMeter not found at ${jmeterBin}. Please install JMeter or set JMETER_HOME environment variable.")
+        }
+        println "JMeter ready at: ${jmeterBin}"
+    }
+}
+
+tasks.register('cleanJMeterResults', Delete) {
+    group = 'jmeter'
+    description = 'Clean JMeter test results'
+    
+    delete jmeterResultsFile
+    delete jmeterReportDir
+    delete 'jmeter.log'
+}
+
+tasks.register('runJMeterTest', Exec) {
+    group = 'jmeter'
+    description = 'Run JMeter performance test'
+    dependsOn setupJMeter, cleanJMeterResults
+    
+    doFirst {
+        if (!file(jmeterTestFile).exists()) {
+            throw new GradleException("JMeter test file '${jmeterTestFile}' not found in project root")
+        }
+
+        file(jmeterResultsFile).parentFile?.mkdirs()
+    }
+    
+    def jmeterHome = getJMeterHome()
+    def jmeterBin = "${jmeterHome}/bin/jmeter"
+
+    if (System.getProperty('os.name').toLowerCase().contains('windows')) {
+        jmeterBin = jmeterBin + '.bat'
+    } else {
+        jmeterBin = jmeterBin + '.sh'
+    }
+    
+    commandLine jmeterBin, '-n', '-t', jmeterTestFile, '-l', jmeterResultsFile
+
+    args '-Jjmeter.reportgenerator.overall_granularity=60000'
+    args '-Jjmeter.reportgenerator.graph.responseTimeOverTime.granularity=60000'
+    
+    doLast {
+        if (file(jmeterResultsFile).exists()) {
+            println "JMeter test completed. Results saved to: ${jmeterResultsFile}"
+        } else {
+            throw new GradleException("JMeter test failed - no results file generated")
+        }
+    }
+}
+
+tasks.register('generateJMeterReport', Exec) {
+    group = 'jmeter'
+    description = 'Generate JMeter HTML report from test results'
+    dependsOn runJMeterTest
+    
+    doFirst {
+        if (!file(jmeterResultsFile).exists()) {
+            throw new GradleException("JMeter results file '${jmeterResultsFile}' not found. Run 'runJMeterTest' first.")
+        }
+
+        delete jmeterReportDir
+        file(jmeterReportDir).mkdirs()
+    }
+    
+    def jmeterHome = getJMeterHome()
+    def jmeterBin = "${jmeterHome}/bin/jmeter"
+
+    if (System.getProperty('os.name').toLowerCase().contains('windows')) {
+        jmeterBin = jmeterBin + '.bat'
+    } else {
+        jmeterBin = jmeterBin + '.sh'
+    }
+    
+    commandLine jmeterBin, '-g', jmeterResultsFile, '-o', jmeterReportDir
+    
+    doLast {
+        def indexFile = file("${jmeterReportDir}/index.html")
+        if (indexFile.exists()) {
+            println "JMeter HTML report generated at: ${indexFile.absolutePath}"
+            println "Open the report in your browser: file://${indexFile.absolutePath}"
+        } else {
+            throw new GradleException("Failed to generate JMeter HTML report")
+        }
+    }
+}
+
+tasks.register('openJMeterGUI', Exec) {
+    group = 'jmeter'
+    description = 'Open JMeter GUI for test development'
+    dependsOn setupJMeter
+    
+    def jmeterHome = getJMeterHome()
+    def jmeterBin = "${jmeterHome}/bin/jmeter"
+    
+    if (System.getProperty('os.name').toLowerCase().contains('windows')) {
+        jmeterBin = jmeterBin + '.bat'
+    } else {
+        jmeterBin = jmeterBin + '.sh'
+    }
+    
+    commandLine jmeterBin
+    
+    if (file(jmeterTestFile).exists()) {
+        args '-t', jmeterTestFile
+    }
+}
+
+tasks.register('runJMeterTestCustom', Exec) {
+    group = 'jmeter'
+    description = 'Run JMeter test with custom parameters'
+    dependsOn setupJMeter, cleanJMeterResults
+    
+    def testFile = project.findProperty('testFile') ?: jmeterTestFile
+    def resultsFile = project.findProperty('resultsFile') ?: jmeterResultsFile
+    def threads = project.findProperty('threads') ?: '10'
+    def rampUp = project.findProperty('rampUp') ?: '60'
+    def duration = project.findProperty('duration') ?: '300'
+    def host = project.findProperty('host') ?: 'localhost'
+    def port = project.findProperty('port') ?: '8080'
+    
+    doFirst {
+        if (!file(testFile).exists()) {
+            throw new GradleException("JMeter test file '${testFile}' not found")
+        }
+        println "Running JMeter test with parameters:"
+        println "  Test file: ${testFile}"
+        println "  Results file: ${resultsFile}"
+        println "  Threads: ${threads}"
+        println "  Ramp-up: ${rampUp}s"
+        println "  Duration: ${duration}s"
+        println "  Host: ${host}"
+        println "  Port: ${port}"
+    }
+    
+    def jmeterHome = getJMeterHome()
+    def jmeterBin = "${jmeterHome}/bin/jmeter"
+    
+    if (System.getProperty('os.name').toLowerCase().contains('windows')) {
+        jmeterBin = jmeterBin + '.bat'
+    } else {
+        jmeterBin = jmeterBin + '.sh'
+    }
+    
+    commandLine jmeterBin, '-n', '-t', testFile, '-l', resultsFile
+    args '-Jthreads=' + threads
+    args '-JrampUp=' + rampUp
+    args '-Jduration=' + duration
+    args '-Jhost=' + host
+    args '-Jport=' + port
+}
+
+tasks.register('runJMeterTestParameterized', Exec) {
+    group = 'jmeter'
+    description = 'Run JMeter test with parameters'
+    dependsOn setupJMeter, cleanJMeterResults
+
+    def host = project.findProperty('host') ?: 'localhost'
+    def port = project.findProperty('port') ?: '8080'
+    def threads = project.findProperty('threads') ?: '10'
+    def rampUp = project.findProperty('rampUp') ?: '60'
+    def duration = project.findProperty('duration') ?: '300'
+    def testFile = project.findProperty('testFile') ?: jmeterTestFile
+    def resultsFile = project.findProperty('resultsFile') ?: jmeterResultsFile
+    
+    doFirst {
+        if (!file(testFile).exists()) {
+            throw new GradleException("JMeter test file '${testFile}' not found")
+        }
+        
+        println "Running JMeter test with parameters:"
+        println "  Host: ${host}"
+        println "  Port: ${port}"
+        println "  Threads: ${threads}"
+        println "  Ramp-up: ${rampUp}s"
+        println "  Duration: ${duration}s"
+        println "  Test file: ${testFile}"
+        println "  Results file: ${resultsFile}"
+
+        file(resultsFile).parentFile?.mkdirs()
+    }
+    
+    def jmeterHome = getJMeterHome()
+    def jmeterBin = "${jmeterHome}/bin/jmeter"
+
+    if (System.getProperty('os.name').toLowerCase().contains('windows')) {
+        jmeterBin = jmeterBin + '.bat'
+    } else {
+        jmeterBin = jmeterBin + '.sh'
+    }
+    
+    commandLine jmeterBin, '-n', '-t', testFile, '-l', resultsFile
+    args '-Jhost=' + host
+    args '-Jport=' + port
+    args '-Jthreads=' + threads
+    args '-JrampUp=' + rampUp
+    args '-Jduration=' + duration
+    args '-Jjmeter.reportgenerator.overall_granularity=60000'
+    args '-Jjmeter.reportgenerator.graph.responseTimeOverTime.granularity=60000'
+    
+    doLast {
+        if (file(resultsFile).exists()) {
+            println "JMeter test completed. Results saved to: ${resultsFile}"
+        } else {
+            throw new GradleException("JMeter test failed - no results file generated")
+        }
+    }
+}
+
+tasks.register('generateJMeterReportParameterized', Exec) {
+    group = 'jmeter'
+    description = 'Generate JMeter HTML report from test results'
+    dependsOn runJMeterTestParameterized
+    
+    def resultsFile = project.findProperty('resultsFile') ?: jmeterResultsFile
+    def reportDir = project.findProperty('reportDir') ?: jmeterReportDir
+    
+    doFirst {
+        if (!file(resultsFile).exists()) {
+            throw new GradleException("JMeter results file '${resultsFile}' not found. Run test first.")
+        }
+
+        delete reportDir
+        file(reportDir).mkdirs()
+        println "Generating HTML report from: ${resultsFile}"
+        println "Report will be saved to: ${reportDir}"
+    }
+    
+    def jmeterHome = getJMeterHome()
+    def jmeterBin = "${jmeterHome}/bin/jmeter"
+
+    if (System.getProperty('os.name').toLowerCase().contains('windows')) {
+        jmeterBin = jmeterBin + '.bat'
+    } else {
+        jmeterBin = jmeterBin + '.sh'
+    }
+    
+    commandLine jmeterBin, '-g', resultsFile, '-o', reportDir
+    
+    doLast {
+        def indexFile = file("${reportDir}/index.html")
+        if (indexFile.exists()) {
+            println "JMeter HTML report generated at: ${indexFile.absolutePath}"
+            println "Open the report in your browser: file://${indexFile.absolutePath}"
+        } else {
+            throw new GradleException("Failed to generate JMeter HTML report")
+        }
+    }
+}
+
+tasks.register('jmeterTestSuite') {
+    group = 'jmeter'
+    description = 'Run JMeter test and generate HTML report with optional host and port parameters'
+    dependsOn generateJMeterReportParameterized
+    
+    doLast {
+        def host = project.findProperty('host') ?: 'localhost'
+        def port = project.findProperty('port') ?: '8080'
+        def resultsFile = project.findProperty('resultsFile') ?: jmeterResultsFile
+        def reportDir = project.findProperty('reportDir') ?: jmeterReportDir
+        
+        println "=========================="
+        println "JMeter Test Suite Completed!"
+        println "=========================="
+        println "Target: ${host}:${port}"
+        println "Results: ${file(resultsFile).absolutePath}"
+        println "Report: ${file("${reportDir}/index.html").absolutePath}"
+        println "=========================="
+    }
+}
+
+tasks.register('validateJMeterTest') {
+    group = 'jmeter'
+    description = 'Validate JMeter test file syntax'
+    dependsOn setupJMeter
+    
+    doLast {
+        if (!file(jmeterTestFile).exists()) {
+            throw new GradleException("JMeter test file '${jmeterTestFile}' not found")
+        }
+        
+        def jmeterHome = getJMeterHome()
+        def jmeterBin = "${jmeterHome}/bin/jmeter"
+        
+        if (System.getProperty('os.name').toLowerCase().contains('windows')) {
+            jmeterBin = jmeterBin + '.bat'
+        } else {
+            jmeterBin = jmeterBin + '.sh'
+        }
+        
+        try {
+            def process = new ProcessBuilder(jmeterBin, '-n', '-t', jmeterTestFile as String, '-l', '/dev/null')
+                    .redirectErrorStream(true)
+                    .start()
+            
+            def exitCode = process.waitFor()
+            
+            if (exitCode == 0) {
+                println "JMeter test file validation: PASSED"
+            } else {
+                def output = process.inputStream.text
+                println "JMeter validation output: ${output}"
+                throw new GradleException("JMeter test file validation: FAILED")
+            }
+        } catch (Exception e) {
+            throw new GradleException("Failed to validate JMeter test file: ${e.message}")
+        }
+    }
+}
+
+tasks.register('checkJMeterInstallation') {
+    group = 'jmeter'
+    description = 'Check JMeter installation and version'
+    dependsOn setupJMeter
+    
+    doLast {
+        def jmeterHome = getJMeterHome()
+        def jmeterBin = "${jmeterHome}/bin/jmeter"
+        
+        if (System.getProperty('os.name').toLowerCase().contains('windows')) {
+            jmeterBin = jmeterBin + '.bat'
+        } else {
+            jmeterBin = jmeterBin + '.sh'
+        }
+        
+        println "JMeter installation check:"
+        println "  Home: ${jmeterHome}"
+        println "  Binary: ${jmeterBin}"
+        println "  Exists: ${file(jmeterBin).exists()}"
+        
+        if (file(jmeterBin).exists()) {
+            try {
+                def process = new ProcessBuilder(jmeterBin, '--version')
+                        .redirectErrorStream(true)
+                        .start()
+                
+                def exitCode = process.waitFor()
+                
+                if (exitCode == 0) {
+                    println "  Status: ✓ JMeter is ready"
+                    def output = process.inputStream.text
+                    def versionLine = output.split('\n').find { it.contains('Version') }
+                    if (versionLine) {
+                        println "  Version: ${versionLine.trim()}"
+                    }
+                } else {
+                    println "  Status: ✗ JMeter binary found but not working properly"
+                }
+            } catch (Exception e) {
+                println "  Status: ✗ Error checking JMeter: ${e.message}"
+            }
+        } else {
+            println "  Status: ✗ JMeter binary not found"
+        }
+    }
+}
+
+tasks.register('performanceTest') {
+    group = 'jmeter'
+    description = 'Start application, run JMeter tests, and generate report'
+    
+    doLast {
+        println "Starting performance test workflow..."
+    }
+    
+    finalizedBy jmeterTestSuite
+}
+
+tasks.register('buildDockerImage') {
+    dependsOn bootBuildImage
+    group = 'docker'
+    description = 'Build Docker image using Spring Boot buildpacks'
+}
+
+tasks.register('runContainer', Exec) {
+    dependsOn buildDockerImage
+    group = 'docker'
+    description = 'Run the application container'
+    
+    commandLine 'docker', 'run', '--rm', '-p', '8080:8080', 
+                '--name', 'session-api',
+                '--env', 'REDIS_HOST=host.docker.internal',
+                '--env', 'REDIS_PORT=6379',
+                "${project.group}/${project.name}:latest"
+}
+
+tasks.register('composeUp', Exec) {
+    dependsOn build
+    group = 'docker'
+    description = 'Start application with Docker Compose'
+    
+    commandLine 'docker-compose', 'up', '--build', '-d'
+}
+
+tasks.register('composeDown', Exec) {
+    group = 'docker'
+    description = 'Stop Docker Compose services'
+    
+    commandLine 'docker-compose', 'down'
+}
+
+tasks.register('composeLogs', Exec) {
+    group = 'docker'
+    description = 'View Docker Compose logs'
+    
+    commandLine 'docker-compose', 'logs', '-f'
+}
+
+tasks.register('dockerClean', Exec) {
+    group = 'docker'
+    description = 'Clean up Docker resources'
+    
+    commandLine 'docker', 'system', 'prune', '-f'
 }

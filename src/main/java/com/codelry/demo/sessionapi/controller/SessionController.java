@@ -28,8 +28,6 @@ public class SessionController {
 
     @PostMapping
     public ResponseEntity<Map<String, String>> createSession() {
-        // RuntimeException from Redis failures will be caught by GlobalExceptionHandler
-        // and converted to HTTP 500
         Session session = sessionService.createSession();
         Map<String, String> response = Map.of("sessionId", session.getSessionId().toString());
         logger.info("Successfully created session: {}", session.getSessionId());
@@ -38,20 +36,20 @@ public class SessionController {
 
     @GetMapping("/{sessionId}")
     public ResponseEntity<Session> getSession(@PathVariable String sessionId) {
-        // IllegalArgumentException will be caught by GlobalExceptionHandler
-        // and converted to HTTP 400
-        UUID uuid = UUID.fromString(sessionId);
-        
-        // RuntimeException from Redis failures will be caught by GlobalExceptionHandler  
-        // and converted to HTTP 500
-        Optional<Session> session = sessionService.getSession(uuid);
-        
-        if (session.isPresent()) {
-            logger.info("Successfully retrieved session: {}", sessionId);
-            return ResponseEntity.ok(session.get());
-        } else {
-            logger.debug("Session not found: {}", sessionId);
-            return ResponseEntity.notFound().build();
+        try {
+            UUID uuid = UUID.fromString(sessionId);
+            Optional<Session> session = sessionService.getSession(uuid);
+            
+            if (session.isPresent()) {
+                logger.info("Successfully retrieved session: {}", sessionId);
+                return ResponseEntity.ok(session.get());
+            } else {
+                logger.debug("Session not found: {}", sessionId);
+                return ResponseEntity.notFound().build();
+            }
+        } catch (IllegalArgumentException e) {
+            logger.warn("Invalid UUID format provided: {}", sessionId);
+            throw e;
         }
     }
 }

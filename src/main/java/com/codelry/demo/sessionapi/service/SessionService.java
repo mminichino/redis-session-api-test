@@ -1,8 +1,6 @@
 package com.codelry.demo.sessionapi.service;
 
 import com.codelry.demo.sessionapi.model.Session;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,9 +8,9 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.retry.support.RetryTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -21,17 +19,19 @@ public class SessionService {
     private static final Logger logger = LoggerFactory.getLogger(SessionService.class);
     private static final String SESSION_KEY_PREFIX = "session:";
     private static final int SESSION_EXPIRATION_HOURS = 24;
-    
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
+
+    private static final String FIELD_SESSION_ID = "sessionId";
+    private static final String FIELD_CREATED_AT = "createdAt";
+    private static final String FIELD_LAST_ACCESSED_AT = "lastAccessedAt";
+
     private final RedisTemplate<String, String> redisTemplate;
-    private final ObjectMapper objectMapper;
     private final RetryTemplate retryTemplate;
 
     @Autowired
-    public SessionService(RedisTemplate<String, String> redisTemplate, 
-                         ObjectMapper objectMapper, 
+    public SessionService(RedisTemplate<String, String> redisTemplate,
                          RetryTemplate retryTemplate) {
         this.redisTemplate = redisTemplate;
-        this.objectMapper = objectMapper;
         this.retryTemplate = retryTemplate;
     }
 
@@ -40,16 +40,17 @@ public class SessionService {
             logger.debug("Attempting to create session in Redis (attempt {})", context.getRetryCount() + 1);
             Session session = new Session();
             String key = SESSION_KEY_PREFIX + session.getSessionId().toString();
-            
-            try {
-                String sessionJson = objectMapper.writeValueAsString(session);
-                redisTemplate.opsForValue().set(key, sessionJson, SESSION_EXPIRATION_HOURS, TimeUnit.HOURS);
-                logger.info("Successfully created session with ID: {}", session.getSessionId());
-                return session;
-            } catch (JsonProcessingException e) {
-                logger.error("Failed to serialize session", e);
-                throw new RuntimeException("Failed to serialize session", e);
-            }
+
+            Map<String, String> sessionHash = new HashMap<>();
+            sessionHash.put(FIELD_SESSION_ID, session.getSessionId().toString());
+            sessionHash.put(FIELD_CREATED_AT, session.getCreatedAt().format(DATE_FORMATTER));
+            sessionHash.put(FIELD_LAST_ACCESSED_AT, session.getLastAccessedAt().format(DATE_FORMATTER));
+
+            redisTemplate.opsForHash().putAll(key, sessionHash);
+            redisTemplate.expire(key, SESSION_EXPIRATION_HOURS, TimeUnit.HOURS);
+
+            logger.info("Successfully created session with ID: {}", session.getSessionId());
+            return session;
         }, context -> {
             logger.error("Failed to create session after all retry attempts", context.getLastThrowable());
             throw new RuntimeException("Unable to create session - Redis service unavailable", context.getLastThrowable());
@@ -60,26 +61,28 @@ public class SessionService {
         return retryTemplate.execute(context -> {
             logger.debug("Attempting to retrieve session {} from Redis (attempt {})", sessionId, context.getRetryCount() + 1);
             String key = SESSION_KEY_PREFIX + sessionId.toString();
-            String sessionJson = redisTemplate.opsForValue().get(key);
-            
-            if (sessionJson == null) {
-                logger.debug("Session {} not found in Redis", sessionId);
-                return Optional.empty();
-            }
             
             try {
-                Session session = objectMapper.readValue(sessionJson, Session.class);
-                session.updateLastAccessed();
-                
-                // Update the session in Redis with the new last accessed time
-                String updatedSessionJson = objectMapper.writeValueAsString(session);
-                redisTemplate.opsForValue().set(key, updatedSessionJson, SESSION_EXPIRATION_HOURS, TimeUnit.HOURS);
-                
-                logger.info("Successfully retrieved and updated session {}", sessionId);
-                return Optional.of(session);
-            } catch (JsonProcessingException e) {
-                logger.error("Failed to deserialize session {}", sessionId, e);
-                throw new RuntimeException("Failed to deserialize session", e);
+              Map<Object, Object> hashEntries = redisTemplate.opsForHash().entries(key);
+
+              if (hashEntries.isEmpty()) {
+                logger.debug("Session {} not found in Redis", sessionId);
+                return Optional.empty();
+              }
+
+              Session session = convertHashToSession(hashEntries);
+
+              LocalDateTime now = LocalDateTime.now();
+              session.setLastAccessedAt(now);
+
+              redisTemplate.opsForHash().put(key, FIELD_LAST_ACCESSED_AT, now.format(DATE_FORMATTER));
+              redisTemplate.expire(key, SESSION_EXPIRATION_HOURS, TimeUnit.HOURS);
+
+              logger.info("Successfully retrieved and updated session {}", sessionId);
+              return Optional.of(session);
+            } catch (Exception e) {
+                logger.error("Failed to retrieve session {}", sessionId, e);
+                throw new RuntimeException("Failed to retrieve session", e);
             }
         }, context -> {
             logger.error("Failed to retrieve session {} after all retry attempts", sessionId, context.getLastThrowable());
@@ -109,5 +112,21 @@ public class SessionService {
             logger.error("Failed to get session count after all retry attempts", context.getLastThrowable());
             throw new RuntimeException("Unable to get session count - Redis service unavailable", context.getLastThrowable());
         });
+    }
+
+    private Session convertHashToSession(Map<Object, Object> hashEntries) {
+      String sessionIdStr = (String) hashEntries.get(FIELD_SESSION_ID);
+      String createdAtStr = (String) hashEntries.get(FIELD_CREATED_AT);
+      String lastAccessedAtStr = (String) hashEntries.get(FIELD_LAST_ACCESSED_AT);
+
+      UUID sessionId = UUID.fromString(sessionIdStr);
+      LocalDateTime createdAt = LocalDateTime.parse(createdAtStr, DATE_FORMATTER);
+      LocalDateTime lastAccessedAt = LocalDateTime.parse(lastAccessedAtStr, DATE_FORMATTER);
+
+      Session session = new Session(sessionId);
+      session.setCreatedAt(createdAt);
+      session.setLastAccessedAt(lastAccessedAt);
+
+      return session;
     }
 }

@@ -37,3 +37,7 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+### JMeter ###
+raw-results.jtl
+jmeter-run-report/

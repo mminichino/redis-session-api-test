@@ -15,12 +15,16 @@ import redis.clients.jedis.JedisPoolConfig;
 
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Configuration
 public class RedisConfig {
 
+    private static final Logger logger = LoggerFactory.getLogger(RedisConfig.class);
+
     @Value("${spring.data.redis.host:localhost}")
-    private String redisHost;
+      private String redisHost;
 
     @Value("${spring.data.redis.port:6379}")
     private int redisPort;
@@ -70,9 +74,11 @@ public class RedisConfig {
         config.setHostName(redisHost);
         config.setPort(redisPort);
         config.setDatabase(redisDatabase);
+        logger.debug("Redis host: {}, port: {}, database: {}", redisHost, redisPort, redisDatabase);
 
         if (StringUtils.hasText(redisPassword)) {
             config.setPassword(redisPassword);
+            logger.debug("Redis password set");
         }
 
         JedisClientConfiguration.JedisClientConfigurationBuilder clientConfigBuilder =
