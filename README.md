@@ -17,7 +17,7 @@
 
 ### Run standalone container
 ```sh
-./gradlew runContainer
+./gradlew runContainer -PredisHost=localhost -PredisPort=6379 -PredisPassword=password
 ```
 
 ### Push docker image

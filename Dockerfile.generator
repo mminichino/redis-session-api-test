@@ -1,0 +1,29 @@
+FROM ubuntu:22.04
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV GRADLE_HOME=/opt/gradle
+ENV JMETER_HOME=/opt/jmeter
+ENV PATH=$PATH:$GRADLE_HOME/bin:$JMETER_HOME/bin
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    wget \
+    unzip \
+    openjdk-17-jdk \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Gradle
+RUN wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip \
+    && unzip -q gradle-8.5-bin.zip -d /opt \
+    && mv /opt/gradle-8.5 $GRADLE_HOME \
+    && rm gradle-8.5-bin.zip
+
+# Set working directory
+WORKDIR /workspace
+
+# Set default entrypoint
+CMD ["sleep", "infinity"]

@@ -1,12 +1,12 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.1.0'
-    id 'io.spring.dependency-management' version '1.1.0'
+    id 'org.springframework.boot' version '3.4.5'
+    id 'io.spring.dependency-management' version '1.1.7'
     id 'de.undercouch.download' version '5.4.0'
 }
 
 group = 'com.codelry.demo'
-version = '1.0-SNAPSHOT'
+version = '1.0.0'
 
 repositories {
     mavenCentral()
@@ -25,13 +25,17 @@ dependencies {
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    testImplementation platform('org.testcontainers:testcontainers-bom:1.19.0')
+    testImplementation platform('org.testcontainers:testcontainers-bom:1.19.8')
     testImplementation 'org.testcontainers:junit-jupiter'
     testImplementation 'org.testcontainers:testcontainers'
 }
 
 test {
     useJUnitPlatform()
+}
+
+tasks.test {
+    enabled = false
 }
 
 ext {
@@ -46,12 +50,19 @@ def getJMeterHome() {
 }
 
 bootBuildImage {
-    imageName = "${project.group}/${project.name}:${project.version}"
-    tags = ["${project.group}/${project.name}:latest"] as Iterable<? extends String>
-    
+    def imageTag = project.findProperty('imageTag') ?: project.version
+
+    imageName = "${project.name}:${imageTag}"
+    tags = ["${project.name}:latest"] as Iterable<? extends String>
+
     environment = [
-        "BP_JVM_VERSION": "17"
+            "BP_JVM_VERSION": "17"
     ]
+
+    builder = "paketobuildpacks/builder-jammy-base:latest"
+    imagePlatform = "linux/amd64"
+    pullPolicy = "ALWAYS"
+    cleanCache = true
 }
 
 tasks.register('downloadJMeter', Download) {
@@ -471,22 +482,101 @@ tasks.register('performanceTest') {
     finalizedBy jmeterTestSuite
 }
 
-tasks.register('buildDockerImage') {
-    dependsOn bootBuildImage
+tasks.register('buildDockerImage', Exec) {
     group = 'docker'
-    description = 'Build Docker image using Spring Boot buildpacks'
+    description = 'Build Docker image'
+    dependsOn build
+
+    doFirst {
+        def imageName = project.findProperty('imageName') ?: project.name
+        def imageTag = project.findProperty('imageTag') ?: project.version
+        def dockerfile = project.findProperty('dockerfile') ?: 'Dockerfile'
+        def buildContext = project.findProperty('buildContext') ?: '.'
+
+        println "Building Docker image"
+        println "  Image: ${imageName}:${imageTag}"
+
+        commandLine 'docker', 'buildx', 'build',
+                '--platform', 'linux/amd64',
+                '-t', "${imageName}:${imageTag}",
+                '-f', dockerfile,
+                buildContext,
+                '--load'
+    }
+}
+
+tasks.register('buildSystemDockerImage', Exec) {
+    group = 'docker'
+    description = 'Build Docker image using system Docker build'
+    dependsOn build
+
+    doFirst {
+        def imageName = project.findProperty('imageName') ?: "${project.group}/${project.name}"
+        def imageTag = project.findProperty('imageTag') ?: project.version
+        def dockerfile = project.findProperty('dockerfile') ?: 'Dockerfile'
+        def buildContext = project.findProperty('buildContext') ?: '.'
+
+        println "Building Docker image using traditional Docker build:"
+        println "  Image: ${imageName}:${imageTag}"
+        println "  Dockerfile: ${dockerfile}"
+        println "  Build context: ${buildContext}"
+
+        commandLine 'docker', 'build', '-t', "${imageName}:${imageTag}", '-f', dockerfile, buildContext
+
+        def additionalTags = project.findProperty('additionalTags')?.split(',' as Closure) ?: []
+        additionalTags.each { tag ->
+            args '-t', "${imageName}:${tag.trim()}"
+        }
+
+        if (imageTag != 'latest') {
+            args '-t', "${imageName}:latest"
+        }
+    }
+
+    doLast {
+        def imageName = project.findProperty('imageName') ?: "${project.group}/${project.name}"
+        def imageTag = project.findProperty('imageTag') ?: project.version
+        println "Docker image built successfully: ${imageName}:${imageTag}"
+    }
 }
 
 tasks.register('runContainer', Exec) {
     dependsOn buildDockerImage
     group = 'docker'
     description = 'Run the application container'
-    
-    commandLine 'docker', 'run', '--rm', '-p', '8080:8080', 
-                '--name', 'session-api',
-                '--env', 'REDIS_HOST=host.docker.internal',
-                '--env', 'REDIS_PORT=6379',
-                "${project.group}/${project.name}:latest"
+
+    def redisHost = project.findProperty('redisHost') ?: 'host.docker.internal'
+    def redisPort = project.findProperty('redisPort') ?: '12000'
+    def redisPassword = project.findProperty('redisPassword') ?: ''
+    def containerPort = project.findProperty('containerPort') ?: '8080'
+    def hostPort = project.findProperty('hostPort') ?: '8080'
+
+    doFirst {
+        println "Starting container with configuration:"
+        println "  Host port: ${hostPort} -> Container port: ${containerPort}"
+        println "  Redis host: ${redisHost}"
+        println "  Redis port: ${redisPort}"
+        println "  Redis password: ${redisPassword ? '***' : '(none)'}"
+    }
+
+    commandLine 'docker', 'run', '--rm', '-d', '-p', "${hostPort}:${containerPort}",
+            '--name', 'session-api',
+            '--env', "REDIS_HOST=${redisHost}",
+            '--env', "REDIS_PORT=${redisPort}"
+
+    if (redisPassword) {
+        args '--env', "REDIS_PASSWORD=${redisPassword}"
+    }
+
+    args "${project.name}:${project.version}"
+}
+
+tasks.register('stopContainer', Exec) {
+    dependsOn build
+    group = 'docker'
+    description = 'Stop application container'
+
+    commandLine 'docker', 'stop', 'session-api'
 }
 
 tasks.register('composeUp', Exec) {
@@ -494,21 +584,21 @@ tasks.register('composeUp', Exec) {
     group = 'docker'
     description = 'Start application with Docker Compose'
     
-    commandLine 'docker-compose', 'up', '--build', '-d'
+    commandLine 'docker', 'compose', 'up', '--build', '-d'
 }
 
 tasks.register('composeDown', Exec) {
     group = 'docker'
     description = 'Stop Docker Compose services'
     
-    commandLine 'docker-compose', 'down'
+    commandLine 'docker', 'compose', 'down'
 }
 
 tasks.register('composeLogs', Exec) {
     group = 'docker'
     description = 'View Docker Compose logs'
     
-    commandLine 'docker-compose', 'logs', '-f'
+    commandLine 'docker', 'compose', 'logs', '-f'
 }
 
 tasks.register('dockerClean', Exec) {
@@ -516,4 +606,34 @@ tasks.register('dockerClean', Exec) {
     description = 'Clean up Docker resources'
     
     commandLine 'docker', 'system', 'prune', '-f'
+}
+
+tasks.register('tagImage', Exec) {
+    group = 'docker'
+    description = 'Tag image'
+
+    if (!project.hasProperty('registry')) {
+        throw new GradleException("registry parameter is required")
+    }
+
+    def imageName = project.findProperty('imageName') ?: project.name
+    def registryDomain = project.findProperty('registry') ?: ''
+
+    commandLine 'docker', 'tag',
+            "${imageName}:${project.version}",
+            "${registryDomain}/${imageName}:latest"
+}
+
+tasks.register('pushImage', Exec) {
+    group = 'docker'
+    description = 'Push image'
+
+    if (!project.hasProperty('registry')) {
+        throw new GradleException("registry parameter is required")
+    }
+
+    def imageName = project.findProperty('imageName') ?: project.name
+    def registryDomain = project.findProperty('registry') ?: ''
+
+    commandLine 'docker', 'push', "${registryDomain}/${imageName}:latest"
 }

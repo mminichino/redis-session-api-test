@@ -41,3 +41,4 @@ bin/
 ### JMeter ###
 raw-results.jtl
 jmeter-run-report/
+jmeter.log
