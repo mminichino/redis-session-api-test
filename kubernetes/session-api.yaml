@@ -48,7 +48,7 @@ spec:
       containers:
         - name: session-api
           image: ${DOCKER_REGISTRY}/redis-session-api-test:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
               name: http

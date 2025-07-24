@@ -5,6 +5,12 @@ metadata:
   labels:
     name: java-runner
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: java-runner-sa
+  namespace: java-runner
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -28,4 +34,4 @@ spec:
       containers:
       - name: java-runner
         image: ${DOCKER_REGISTRY}/java-runner:latest
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always

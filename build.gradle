@@ -372,6 +372,8 @@ tasks.register('jmeterTestSuite') {
     doLast {
         def host = project.findProperty('host') ?: 'localhost'
         def port = project.findProperty('port') ?: '8080'
+        def duration = project.findProperty('duration') ?: '300'
+        def threads = project.findProperty('threads') ?: '10'
         def resultsFile = project.findProperty('resultsFile') ?: jmeterResultsFile
         def reportDir = project.findProperty('reportDir') ?: jmeterReportDir
         
@@ -379,6 +381,7 @@ tasks.register('jmeterTestSuite') {
         println "JMeter Test Suite Completed!"
         println "=========================="
         println "Target: ${host}:${port}"
+        println "Duration: ${duration} Threads: ${threads}"
         println "Results: ${file(resultsFile).absolutePath}"
         println "Report: ${file("${reportDir}/index.html").absolutePath}"
         println "=========================="
