@@ -6,12 +6,15 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
-import org.springframework.data.redis.connection.jedis.JedisClientConfiguration;
-import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
+import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
+import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
+import org.springframework.data.redis.connection.lettuce.LettucePoolingClientConfiguration;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.util.StringUtils;
-import redis.clients.jedis.JedisPoolConfig;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import io.lettuce.core.resource.ClientResources;
+import io.lettuce.core.resource.DefaultClientResources;
 
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -24,7 +27,7 @@ public class RedisConfig {
     private static final Logger logger = LoggerFactory.getLogger(RedisConfig.class);
 
     @Value("${spring.data.redis.host:localhost}")
-      private String redisHost;
+    private String redisHost;
 
     @Value("${spring.data.redis.port:6379}")
     private int redisPort;
@@ -42,22 +45,27 @@ public class RedisConfig {
     @DurationUnit(ChronoUnit.MILLIS)
     private Duration timeout;
 
-    @Value("${spring.data.redis.jedis.pool.max-active:20}")
+    @Value("${spring.data.redis.lettuce.pool.max-active:20}")
     private int maxActive;
 
-    @Value("${spring.data.redis.jedis.pool.max-idle:10}")
+    @Value("${spring.data.redis.lettuce.pool.max-idle:10}")
     private int maxIdle;
 
-    @Value("${spring.data.redis.jedis.pool.min-idle:2}")
+    @Value("${spring.data.redis.lettuce.pool.min-idle:2}")
     private int minIdle;
 
-    @Value("${spring.data.redis.jedis.pool.max-wait:5000ms}")
+    @Value("${spring.data.redis.lettuce.pool.max-wait:5000ms}")
     @DurationUnit(ChronoUnit.MILLIS)
     private Duration maxWait;
 
+    @Bean(destroyMethod = "shutdown")
+    public ClientResources clientResources() {
+        return DefaultClientResources.create();
+    }
+
     @Bean
-    public JedisPoolConfig jedisPoolConfig() {
-        JedisPoolConfig poolConfig = new JedisPoolConfig();
+    public GenericObjectPoolConfig<Object> redisPoolConfig() {
+        GenericObjectPoolConfig<Object> poolConfig = new GenericObjectPoolConfig<>();
         poolConfig.setMaxTotal(maxActive);
         poolConfig.setMaxIdle(maxIdle);
         poolConfig.setMinIdle(minIdle);
@@ -69,7 +77,7 @@ public class RedisConfig {
     }
 
     @Bean
-    public RedisConnectionFactory redisConnectionFactory() {
+    public RedisConnectionFactory redisConnectionFactory(ClientResources clientResources) {
         RedisStandaloneConfiguration config = new RedisStandaloneConfiguration();
         config.setHostName(redisHost);
         config.setPort(redisPort);
@@ -81,20 +89,19 @@ public class RedisConfig {
             logger.debug("Redis password set");
         }
 
-        JedisClientConfiguration.JedisClientConfigurationBuilder clientConfigBuilder =
-            JedisClientConfiguration.builder()
-                .connectTimeout(timeout)
-                .readTimeout(timeout)
-                .usePooling()
-                .poolConfig(jedisPoolConfig()).and();
+        LettuceClientConfiguration.LettuceClientConfigurationBuilder clientConfigBuilder =
+            LettucePoolingClientConfiguration.builder()
+                .commandTimeout(timeout)
+                .poolConfig(redisPoolConfig())
+                .clientResources(clientResources);
 
         if (useSsl) {
             clientConfigBuilder.useSsl();
         }
         
-        JedisClientConfiguration clientConfig = clientConfigBuilder.build();
+        LettuceClientConfiguration clientConfig = clientConfigBuilder.build();
         
-        return new JedisConnectionFactory(config, clientConfig);
+        return new LettuceConnectionFactory(config, clientConfig);
     }
 
     @Bean
