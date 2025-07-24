@@ -34,3 +34,14 @@
 ```sh
 ./gradlew jmeterTestSuite -Phost=localhost -Pport=8080 -Pthreads=50 -PrampUp=120 -Pduration=600
 ```
+
+### Deploy to kubernetes
+Set `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, and `DOCKER_REGISTRY` environment variables.
+The `REDIS_PASSWORD` environment variable should be base64 encoded.
+```sh
+envsubst < session-api.yaml | kubectl apply -f -
+```
+
+```sh
+envsubst < runner.yaml | kubectl apply -f -
+```

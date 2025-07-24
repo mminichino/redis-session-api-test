@@ -5,8 +5,7 @@ ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 ENV GRADLE_HOME=/opt/gradle
 ENV JMETER_HOME=/opt/jmeter
 ENV PATH=$PATH:$GRADLE_HOME/bin:$JMETER_HOME/bin
-
-RUN groupadd -r -g 1001 appuser && useradd -r -g appuser -u 1001 appuser
+ENV HOME=/workspace
 
 RUN apt-get update && apt-get install -y \
     git \
@@ -14,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     wget \
     unzip \
     openjdk-17-jdk \
+    jq \
     && rm -rf /var/lib/apt/lists/*
 
 RUN wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip \
@@ -21,8 +21,15 @@ RUN wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip \
     && mv /opt/gradle-8.5 $GRADLE_HOME \
     && rm gradle-8.5-bin.zip
 
+RUN wget -q https://dlcdn.apache.org/jmeter/binaries/apache-jmeter-5.6.3.tgz \
+    && tar -xzf apache-jmeter-5.6.3.tgz \
+    && mv apache-jmeter-5.6.3 /opt/jmeter \
+    && rm apache-jmeter-5.6.3.tgz
+
+RUN useradd -r -g root -u 1001 -d /workspace appuser
+
 RUN mkdir -p /workspace && \
-    chown -R appuser:appuser /workspace && \
+    chown -R appuser /workspace && \
     chmod -R 777 /workspace
 
 WORKDIR /workspace
