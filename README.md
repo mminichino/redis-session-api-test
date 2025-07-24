@@ -32,16 +32,30 @@
 
 ### Run test with additional parameters
 ```sh
-./gradlew jmeterTestSuite -Phost=localhost -Pport=8080 -Pthreads=50 -PrampUp=120 -Pduration=600
+./gradlew jmeterTestSuite -Phost=localhost -Pport=8080 -Pthreads=50 -Pduration=600
 ```
 
 ### Deploy to kubernetes
-Set `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, and `DOCKER_REGISTRY` environment variables.
-The `REDIS_PASSWORD` environment variable should be base64 encoded.
+Edit the Redis host and port in the config map, and password in the secret via `kubectl` once deployed.
 ```sh
-envsubst < session-api.yaml | kubectl apply -f -
+kubectl apply -f session-api-namespace.yaml
 ```
-
 ```sh
-envsubst < runner.yaml | kubectl apply -f -
+kubectl apply -f spring-api-configmap.yaml
+```
+```sh
+kubectl apply -f spring-api-secret.yaml
+```
+```sh
+kubectl apply -f session-api-deployment.yaml
+```
+To deploy the test runner:
+```sh
+kubectl apply -f runner-namespace.yaml
+```
+```sh
+kubectl apply -f runner-deployment.yaml
+```
+```sh
+kubectl exec -it java-runner-76f567d67c-djk87 -n java-runner -- /bin/bash
 ```
