@@ -1,0 +1,25 @@
+apiVersion: app.redislabs.com/v1alpha1
+kind: RedisEnterpriseDatabase
+metadata:
+  name: redis-database
+  namespace: redis-demo
+  labels:
+    app: redis-demo
+spec:
+  redisEnterpriseCluster:
+    name: redis-enterprise-cluster
+  proxyPolicy: all-nodes
+  memorySize: 1GB
+  rackAware: true
+  replication: true
+  shardCount: 1
+  type: redis
+  databasePort: 12000
+  tlsMode: enabled
+  persistence: aofEverySecond
+  modulesList:
+    - name: ReJSON
+    - name: search
+    - name: timeseries
+  clientAuthenticationCertificates:
+    - client-cert-secret

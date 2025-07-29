@@ -1,0 +1,40 @@
+apiVersion: app.redislabs.com/v1
+kind: RedisEnterpriseCluster
+metadata:
+  name: redis-enterprise-cluster
+  namespace: redis-demo
+  labels:
+    app: redis-demo
+spec:
+  redisEnterpriseNodeResources:
+    limits:
+      cpu: '4'
+      memory: 4Gi
+    requests:
+      cpu: '4'
+      memory: 4Gi
+  nodes: 3
+  persistentSpec:
+    enabled: true
+    storageClassName: ''
+    volumeSize: 20Gi
+  createServiceAccount: true
+  dataInternodeEncryption: true
+  rackAwarenessNodeLabel: topology.kubernetes.io/zone
+  username: demo@redis.com
+  uiServiceType: LoadBalancer
+  certificates:
+    proxyCertificateSecretName: proxy-cert-secret
+  servicesRiggerSpec:
+    databaseServiceType: 'cluster_ip,load_balancer'
+    serviceNaming: bdb_name
+  services:
+    apiService:
+      type: LoadBalancer
+  redisEnterpriseImageSpec:
+    repository: registry.connect.redhat.com/redislabs/redis-enterprise
+    versionTag: 7.22.0-216
+  redisEnterpriseServicesRiggerImageSpec:
+    repository: registry.connect.redhat.com/redislabs/services-manager
+  bootstrapperImageSpec:
+    repository: registry.connect.redhat.com/redislabs/redis-enterprise-operator
