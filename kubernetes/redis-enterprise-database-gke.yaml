@@ -1,0 +1,22 @@
+apiVersion: app.redislabs.com/v1alpha1
+kind: RedisEnterpriseDatabase
+metadata:
+  name: redb
+  namespace: redis
+  labels:
+    app: redis-database
+spec:
+  redisEnterpriseCluster:
+    name: redis-enterprise-cluster
+  proxyPolicy: all-master-shards
+  memorySize: 1GB
+  replication: true
+  shardCount: 1
+  type: redis
+  databasePort: 12000
+  persistence: aofEverySecond
+  evictionPolicy: noeviction
+  modulesList:
+    - name: ReJSON
+    - name: search
+    - name: timeseries

@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'com.codelry.demo'
-version = '1.0.0'
+version = '1.0.1'
 
 repositories {
     mavenCentral()
@@ -22,6 +22,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-aop'
     implementation 'org.apache.commons:commons-pool2'
     implementation 'io.lettuce:lettuce-core'
+    implementation 'redis.clients:jedis'
     implementation 'io.micrometer:micrometer-core'
     implementation 'io.micrometer:micrometer-registry-prometheus'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
@@ -38,7 +39,7 @@ test {
 }
 
 tasks.test {
-    enabled = false
+    enabled = true
 }
 
 ext {
@@ -66,6 +67,14 @@ bootBuildImage {
     imagePlatform = "linux/amd64"
     pullPolicy = "ALWAYS"
     cleanCache = true
+}
+
+tasks.withType(Test).configureEach {
+    testLogging {
+        events "passed", "skipped", "failed"
+        showStandardStreams = false
+        exceptionFormat "full"
+    }
 }
 
 tasks.register('downloadJMeter', Download) {
@@ -285,6 +294,11 @@ tasks.register('runJMeterTestParameterized', Exec) {
     doFirst {
         if (!file(testFile).exists()) {
             throw new GradleException("JMeter test file '${testFile}' not found")
+        }
+
+        if (file(resultsFile).exists()) {
+            println "Removing previous test results file ${resultsFile}"
+            delete resultsFile
         }
         
         println "Running JMeter test with parameters:"
@@ -556,6 +570,7 @@ tasks.register('runContainer', Exec) {
     def redisPassword = project.findProperty('redisPassword') ?: ''
     def containerPort = project.findProperty('containerPort') ?: '8080'
     def hostPort = project.findProperty('hostPort') ?: '8080'
+    def redisClientType = project.findProperty('redisClientType') ?: 'lettuce'
 
     doFirst {
         println "Starting container with configuration:"
@@ -563,12 +578,14 @@ tasks.register('runContainer', Exec) {
         println "  Redis host: ${redisHost}"
         println "  Redis port: ${redisPort}"
         println "  Redis password: ${redisPassword ? '***' : '(none)'}"
+        println "  Redis client type: ${redisClientType}"
     }
 
     commandLine 'docker', 'run', '--rm', '-d', '-p', "${hostPort}:${containerPort}",
             '--name', 'session-api',
             '--env', "REDIS_HOST=${redisHost}",
-            '--env', "REDIS_PORT=${redisPort}"
+            '--env', "REDIS_PORT=${redisPort}",
+            '--env', "REDIS_CLIENT_TYPE=${redisClientType}"
 
     if (redisPassword) {
         args '--env', "REDIS_PASSWORD=${redisPassword}"
@@ -583,6 +600,14 @@ tasks.register('stopContainer', Exec) {
     description = 'Stop application container'
 
     commandLine 'docker', 'stop', 'session-api'
+}
+
+tasks.register('removeContainer', Exec) {
+    dependsOn build
+    group = 'docker'
+    description = 'Removing application container'
+
+    commandLine 'docker', 'rm', 'session-api'
 }
 
 tasks.register('composeUp', Exec) {
@@ -614,32 +639,48 @@ tasks.register('dockerClean', Exec) {
     commandLine 'docker', 'system', 'prune', '-f'
 }
 
-tasks.register('tagImage', Exec) {
+tasks.register('tagImageVersion', Exec) {
     group = 'docker'
     description = 'Tag image'
 
-    if (!project.hasProperty('registry')) {
-        throw new GradleException("registry parameter is required")
-    }
+    def imageName = project.findProperty('imageName') ?: project.name
+    def registryDomain = project.findProperty('registry') ?: 'mminichino'
+
+    commandLine 'docker', 'tag',
+            "${imageName}:${project.version}",
+            "${registryDomain}/${imageName}:${project.version}"
+}
+
+tasks.register('tagImage', Exec) {
+    dependsOn tagImageVersion
+    group = 'docker'
+    description = 'Tag image'
 
     def imageName = project.findProperty('imageName') ?: project.name
-    def registryDomain = project.findProperty('registry') ?: ''
+    def registryDomain = project.findProperty('registry') ?: 'mminichino'
 
     commandLine 'docker', 'tag',
             "${imageName}:${project.version}",
             "${registryDomain}/${imageName}:latest"
 }
 
-tasks.register('pushImage', Exec) {
+tasks.register('pushImageVersion', Exec) {
     group = 'docker'
     description = 'Push image'
 
-    if (!project.hasProperty('registry')) {
-        throw new GradleException("registry parameter is required")
-    }
+    def imageName = project.findProperty('imageName') ?: project.name
+    def registryDomain = project.findProperty('registry') ?: 'mminichino'
+
+    commandLine 'docker', 'push', "${registryDomain}/${imageName}:${project.version}"
+}
+
+tasks.register('pushImage', Exec) {
+    dependsOn pushImageVersion
+    group = 'docker'
+    description = 'Push image'
 
     def imageName = project.findProperty('imageName') ?: project.name
-    def registryDomain = project.findProperty('registry') ?: ''
+    def registryDomain = project.findProperty('registry') ?: 'mminichino'
 
     commandLine 'docker', 'push', "${registryDomain}/${imageName}:latest"
 }

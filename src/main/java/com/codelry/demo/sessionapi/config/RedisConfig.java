@@ -1,32 +1,41 @@
 package com.codelry.demo.sessionapi.config;
 
+import io.lettuce.core.ClientOptions;
+import io.lettuce.core.SslOptions;
+import io.lettuce.core.resource.ClientResources;
+import io.lettuce.core.resource.DefaultClientResources;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.convert.DurationUnit;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
+import org.springframework.data.redis.connection.jedis.JedisClientConfiguration;
+import org.springframework.data.redis.connection.jedis.JedisConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettucePoolingClientConfiguration;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.util.StringUtils;
-import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-import io.lettuce.core.resource.ClientResources;
-import io.lettuce.core.resource.DefaultClientResources;
-import io.lettuce.core.SslOptions;
-import io.lettuce.core.ClientOptions;
 
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import java.io.FileInputStream;
 import java.security.KeyStore;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @Configuration
 public class RedisConfig {
@@ -87,6 +96,7 @@ public class RedisConfig {
     private Duration maxWait;
 
     @Bean(destroyMethod = "shutdown")
+    @ConditionalOnProperty(name = "spring.data.redis.client-type", havingValue = "lettuce", matchIfMissing = true)
     public ClientResources clientResources() {
         return DefaultClientResources.create();
     }
@@ -105,16 +115,17 @@ public class RedisConfig {
     }
 
     @Bean
-    public RedisConnectionFactory redisConnectionFactory(ClientResources clientResources) throws Exception {
+    @ConditionalOnProperty(name = "spring.data.redis.client-type", havingValue = "lettuce", matchIfMissing = true)
+    public RedisConnectionFactory lettuceConnectionFactory(ClientResources clientResources) throws Exception {
         RedisStandaloneConfiguration config = new RedisStandaloneConfiguration();
         config.setHostName(redisHost);
         config.setPort(redisPort);
         config.setDatabase(redisDatabase);
-        logger.info("Redis host: {}, port: {}, database: {}", redisHost, redisPort, redisDatabase);
+        logger.info("Lettuce host: {}, port: {}, database: {}", redisHost, redisPort, redisDatabase);
 
         if (StringUtils.hasText(redisPassword)) {
             config.setPassword(redisPassword);
-            logger.info("Redis password authentication enabled");
+            logger.info("Lettuce password authentication enabled");
         }
 
         LettuceClientConfiguration.LettuceClientConfigurationBuilder clientConfigBuilder =
@@ -125,7 +136,7 @@ public class RedisConfig {
 
         if (useSsl) {
             logger.info("Configuring Redis connection with SSL");
-            ClientOptions clientOptions = createSslClientOptions();
+            ClientOptions clientOptions = createLettuceSslClientOptions();
             clientConfigBuilder.useSsl().and().clientOptions(clientOptions);
         }
         
@@ -134,15 +145,86 @@ public class RedisConfig {
         return new LettuceConnectionFactory(config, clientConfig);
     }
 
-    private ClientOptions createSslClientOptions() throws Exception {
-        SslOptions sslOptions = createSslOptions();
+    @Bean
+    @ConditionalOnProperty(name = "spring.data.redis.client-type", havingValue = "jedis")
+    public RedisConnectionFactory jedisConnectionFactory() throws Exception {
+        RedisStandaloneConfiguration config = new RedisStandaloneConfiguration();
+        config.setHostName(redisHost);
+        config.setPort(redisPort);
+        config.setDatabase(redisDatabase);
+        logger.info("Jedis host: {}, port: {}, database: {}", redisHost, redisPort, redisDatabase);
+
+        if (StringUtils.hasText(redisPassword)) {
+            config.setPassword(redisPassword);
+            logger.info("Jedis password authentication enabled");
+        }
+
+        var clientConfigBuilder = JedisClientConfiguration.builder();
+
+        clientConfigBuilder.readTimeout(timeout).connectTimeout(timeout);
+
+        clientConfigBuilder.usePooling().poolConfig(redisPoolConfig());
+
+        if (useSsl) {
+            logger.info("Configuring Jedis connection with SSL");
+            SSLSocketFactory sslSocketFactory = createJedisSslSocketFactory();
+            HostnameVerifier hostnameVerifier = !sslVerify ? (hostname, session) -> true : HttpsURLConnection.getDefaultHostnameVerifier();
+
+            clientConfigBuilder.useSsl()
+                    .sslSocketFactory(sslSocketFactory)
+                    .hostnameVerifier(hostnameVerifier);
+        }
+
+        return new JedisConnectionFactory(config, clientConfigBuilder.build());
+    }
+
+    private SSLSocketFactory createJedisSslSocketFactory() throws Exception {
+        KeyManager[] keyManagers = null;
+        if (StringUtils.hasText(keystorePath)) {
+            KeyStore keyStore = KeyStore.getInstance(keystoreType);
+            try (FileInputStream fis = new FileInputStream(keystorePath)) {
+                keyStore.load(fis, keystorePassword.toCharArray());
+            }
+
+            KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            keyManagerFactory.init(keyStore, keystorePassword.toCharArray());
+            keyManagers = keyManagerFactory.getKeyManagers();
+            logger.info("Jedis client keystore configured: {}", keystorePath);
+        }
+
+        TrustManager[] trustManagers = null;
+        if (!sslVerify) {
+            trustManagers = InsecureTrustManagerFactory.INSTANCE.getTrustManagers();
+            logger.info("SSL certificate validation disabled for Jedis");
+        } else if (StringUtils.hasText(truststorePath)) {
+            KeyStore trustStore = KeyStore.getInstance(truststoreType);
+            try (FileInputStream fis = new FileInputStream(truststorePath)) {
+                trustStore.load(fis, truststorePassword.toCharArray());
+            }
+
+            TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            trustManagerFactory.init(trustStore);
+            trustManagers = trustManagerFactory.getTrustManagers();
+            logger.info("Jedis client truststore configured: {}", truststorePath);
+        } else {
+            logger.warn("SSL certificate validation enabled but no truststore configured for Jedis");
+        }
+
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(keyManagers, trustManagers, null);
+
+        return sslContext.getSocketFactory();
+    }
+
+    private ClientOptions createLettuceSslClientOptions() throws Exception {
+        SslOptions sslOptions = createLettuceSslOptions();
         
         return ClientOptions.builder()
             .sslOptions(sslOptions)
             .build();
     }
 
-    private SslOptions createSslOptions() throws Exception {
+    private SslOptions createLettuceSslOptions() throws Exception {
       SslOptions.Builder sslOptionsBuilder = SslOptions.builder();
 
       if (StringUtils.hasText(keystorePath)) {
