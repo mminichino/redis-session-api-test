@@ -22,6 +22,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-aop'
     implementation 'org.apache.commons:commons-pool2'
     implementation 'io.lettuce:lettuce-core'
+    implementation 'redis.clients:jedis'
     implementation 'io.micrometer:micrometer-core'
     implementation 'io.micrometer:micrometer-registry-prometheus'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
@@ -38,7 +39,7 @@ test {
 }
 
 tasks.test {
-    enabled = false
+    enabled = true
 }
 
 ext {
@@ -66,6 +67,14 @@ bootBuildImage {
     imagePlatform = "linux/amd64"
     pullPolicy = "ALWAYS"
     cleanCache = true
+}
+
+tasks.withType(Test).configureEach {
+    testLogging {
+        events "passed", "skipped", "failed"
+        showStandardStreams = false
+        exceptionFormat "full"
+    }
 }
 
 tasks.register('downloadJMeter', Download) {

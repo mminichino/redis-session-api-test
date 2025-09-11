@@ -3,16 +3,22 @@ package com.codelry.demo.sessionapi;
 import com.codelry.demo.sessionapi.model.Session;
 import com.codelry.demo.sessionapi.service.SessionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.util.TestPropertyValues;
+import org.springframework.context.ApplicationContextInitializer;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.utility.DockerImageName;
 
-import java.util.Set;
 import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -20,18 +26,35 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@TestPropertySource(properties = {
-    "spring.data.redis.host=${REDIS_HOST:localhost}",
-    "spring.data.redis.port=${REDIS_PORT:12000}",
-    "spring.data.redis.password=${REDIS_PASSWORD:}",
-    "spring.data.redis.database=${REDIS_DATABASE:0}",
-    "spring.data.redis.timeout=2000ms",
-    "app.retry.max-attempts=3",
-    "app.retry.delay=100",
-    "app.retry.multiplier=1.5",
-    "logging.level.com.codelry.demo=DEBUG"
-})
-class SessionControllerTest {
+@ContextConfiguration(initializers = SessionControllerLettuceTest.Initializer.class)
+class SessionControllerLettuceTest {
+
+    static final GenericContainer<?> redis = new GenericContainer<>(DockerImageName.parse("redis/redis-stack:latest"))
+        .withExposedPorts(6379)
+        .withCreateContainerCmdModifier(cmd -> cmd.withHostConfig(
+            new com.github.dockerjava.api.model.HostConfig().withPortBindings(
+                new com.github.dockerjava.api.model.PortBinding(
+                    com.github.dockerjava.api.model.Ports.Binding.bindPort(16379),
+                    new com.github.dockerjava.api.model.ExposedPort(6379)
+                )
+            )
+        ));
+
+    static class Initializer implements ApplicationContextInitializer<ConfigurableApplicationContext> {
+      @Override
+      public void initialize(ConfigurableApplicationContext applicationContext) {
+        redis.start();
+        TestPropertyValues.of(
+            "spring.data.redis.host=" + redis.getHost(),
+            "spring.data.redis.port=" + redis.getMappedPort(6379)
+        ).applyTo(applicationContext.getEnvironment());
+      }
+    }
+
+    @AfterAll
+    static void afterAll() {
+      redis.stop();
+    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -148,10 +171,8 @@ class SessionControllerTest {
 
     private void cleanupTestData() {
         try {
-            Set<String> keys = redisTemplate.keys("session:*");
-            if (!keys.isEmpty()) {
-                redisTemplate.delete(keys);
-            }
+            Assertions.assertNotNull(redisTemplate.getConnectionFactory());
+            redisTemplate.getConnectionFactory().getConnection().serverCommands().flushDb();
         } catch (Exception e) {
             System.out.println("Warning: Could not clean up test data: " + e.getMessage());
         }
