@@ -1,0 +1,28 @@
+apiVersion: app.redislabs.com/v1
+kind: RedisEnterpriseCluster
+metadata:
+  name: redis-enterprise-cluster
+  namespace: redis
+  labels:
+    app: redis
+spec:
+  redisEnterpriseNodeResources:
+    limits:
+      cpu: '4'
+      memory: 8Gi
+    requests:
+      cpu: '4'
+      memory: 8Gi
+  nodes: 3
+  persistentSpec:
+    enabled: true
+    storageClassName: 'premium-rwo'
+    volumeSize: 20Gi
+  username: demo@redis.com
+  uiServiceType: LoadBalancer
+  servicesRiggerSpec:
+    databaseServiceType: 'cluster_ip,load_balancer'
+    serviceNaming: bdb_name
+  services:
+    apiService:
+      type: LoadBalancer
