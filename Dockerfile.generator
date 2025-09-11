@@ -28,8 +28,11 @@ RUN wget -q https://dlcdn.apache.org/jmeter/binaries/apache-jmeter-5.6.3.tgz \
 
 RUN useradd -r -g root -u 1001 -d /workspace appuser
 
-RUN mkdir -p /workspace && \
-    chown -R appuser /workspace && \
+RUN mkdir -p /workspace
+
+RUN git clone https://github.com/mminichino/redis-session-api-test.git /workspace/redis-session-api-test
+
+RUN chown -R appuser /workspace && \
     chmod -R 777 /workspace
 
 WORKDIR /workspace
