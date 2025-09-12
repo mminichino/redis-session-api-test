@@ -518,6 +518,8 @@ tasks.register('buildDockerImage', Exec) {
 
         commandLine 'docker', 'buildx', 'build',
                 '--platform', 'linux/amd64',
+                '--no-cache',
+                '--build-arg', "JAR_FILE=build/libs/redis-session-api-test-${project.version}.jar",
                 '-t', "${imageName}:${imageTag}",
                 '-f', dockerfile,
                 buildContext,

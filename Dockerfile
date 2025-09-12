@@ -1,6 +1,8 @@
 FROM eclipse-temurin:17-jre-jammy
 
-COPY build/libs/*.jar app.jar
+ARG JAR_FILE=build/libs/redis-session-api-test-*.jar
+
+COPY ${JAR_FILE} app.jar
 
 EXPOSE 8080
 
