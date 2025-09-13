@@ -1,0 +1,25 @@
+#
+
+domainFilters:
+  - example.com
+googleServiceAccount: ""
+googleProject: ""
+dryRun: false
+
+externalDns:
+  image:
+    repository: registry.k8s.io/external-dns/external-dns
+    tag: "v0.19.0"
+    pullPolicy: IfNotPresent
+  txtOwnerId: "external-dns"
+
+deployment:
+  name: external-dns
+  replicaCount: 2
+
+serviceAccount:
+  name: external-dns
+
+rbac:
+  roleName: external-dns
+  bindingName: external-dns-viewer

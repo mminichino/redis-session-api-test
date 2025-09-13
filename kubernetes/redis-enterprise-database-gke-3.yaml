@@ -10,10 +10,11 @@ spec:
     name: redis-enterprise-cluster
   proxyPolicy: all-master-shards
   memorySize: 1GB
+  databaseSecretName: redis-database-3
   replication: true
   shardCount: 1
   type: redis
-  databasePort: 12003
+  databasePort: 12002
   persistence: aofEverySecond
   evictionPolicy: noeviction
   modulesList:

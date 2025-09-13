@@ -1,19 +1,20 @@
 apiVersion: app.redislabs.com/v1alpha1
 kind: RedisEnterpriseDatabase
 metadata:
-  name: redb
+  name: redb4
   namespace: redis
   labels:
-    app: redis-database
+    app: redis-database-4
 spec:
   redisEnterpriseCluster:
     name: redis-enterprise-cluster
   proxyPolicy: all-master-shards
   memorySize: 1GB
+  databaseSecretName: redis-database-4
   replication: true
   shardCount: 1
   type: redis
-  databasePort: 12000
+  databasePort: 12003
   persistence: aofEverySecond
   evictionPolicy: noeviction
   modulesList:

@@ -1,0 +1,17 @@
+apiVersion: v2
+name: external-dns
+description: A Helm chart for External DNS on GKE with Google Cloud DNS support
+type: application
+version: 0.1.0
+appVersion: "0.19.0"
+keywords:
+  - external-dns
+  - dns
+  - gke
+  - google-cloud
+home: https://github.com/kubernetes-sigs/external-dns
+sources:
+  - https://github.com/kubernetes-sigs/external-dns
+maintainers:
+  - name: External DNS Team
+    url: https://github.com/kubernetes-sigs/external-dns
