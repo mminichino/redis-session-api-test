@@ -1,0 +1,16 @@
+apiVersion: v2
+name: session-api
+description: Basic session API using Redis
+type: application
+version: 0.1.0
+appVersion: "1.0.1"
+keywords:
+  - session-api
+  - rest
+  - redis
+home: https://github.com/mminichino/redis-session-api-test
+sources:
+  - https://github.com/mminichino/redis-session-api-test
+maintainers:
+  - name: Michael Minichino
+    url: https://github.com/mminichino/redis-session-api-test

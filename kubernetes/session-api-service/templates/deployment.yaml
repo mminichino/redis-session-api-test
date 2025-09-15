@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: session-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: session-api
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app: session-api
+  template:
+    metadata:
+      labels:
+        app: session-api
+    spec:
+      containers:
+        - name: session-api
+          image: "{{ .Values.sessionApi.image.repository }}:{{ .Values.sessionApi.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.sessionApi.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.servicePort }}
+              name: http
+          env:
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: session-api-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: session-api-config
+                  key: REDIS_PORT
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: redis-password
+            - name: REDIS_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: session-api-config
+                  key: REDIS_DATABASE
+            - name: REDIS_CLIENT_TYPE
+              valueFrom:
+                configMapKeyRef:
+                  name: session-api-config
+                  key: REDIS_CLIENT_TYPE
+            - name: JAVA_OPTS
+              valueFrom:
+                configMapKeyRef:
+                  name: session-api-config
+                  key: JAVA_OPTS
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: {{ .Values.servicePort }}
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: {{ .Values.servicePort }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: {{ .Values.servicePort }}
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 12
+      restartPolicy: Always
