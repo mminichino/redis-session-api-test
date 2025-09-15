@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: java-runner
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: session-api
+    component: java-app-runner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: java-runner
+  template:
+    metadata:
+      labels:
+        app: java-runner
+        component: java-app-runner
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: java-runner
+          image: "{{ .Values.runner.image.repository }}:{{ .Values.runner.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.runner.image.pullPolicy }}

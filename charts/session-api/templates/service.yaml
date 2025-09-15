@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: session-api-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: session-api
+spec:
+  type: ClusterIP
+  selector:
+    app: session-api
+  ports:
+    - name: http
+      port: {{ .Values.servicePort }}
+      targetPort: {{ .Values.servicePort }}
+      protocol: TCP
+  sessionAffinity: None

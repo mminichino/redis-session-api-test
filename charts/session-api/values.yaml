@@ -1,0 +1,20 @@
+#
+
+sessionApi:
+  image:
+    repository: mminichino/redis-session-api-test
+    tag: ""
+    pullPolicy: Always
+
+runner:
+  image:
+    repository: mminichino/java-runner
+    tag: ""
+    pullPolicy: Always
+
+redisHost: ""
+redisPassword: ""
+redisPort: "12000"
+clientType: "lettuce"
+replicas: 1
+servicePort: 8080

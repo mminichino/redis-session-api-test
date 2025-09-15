@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: session-api-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: session-api
+data:
+  REDIS_HOST: "{{ .Values.redisHost }}"
+  REDIS_PORT: "{{ .Values.redisPort }}"
+  REDIS_DATABASE: "0"
+  SPRING_PROFILES_ACTIVE: "kubernetes"
+  JAVA_OPTS: "-Xmx512m -Xms256m -Dspring.profiles.active=kubernetes"
+  REDIS_CLIENT_TYPE: "{{ .Values.clientType }}"
