@@ -21,20 +21,12 @@ import static org.junit.jupiter.api.Assertions.*;
 @ContextConfiguration(initializers = SessionServiceRedisTest.Initializer.class)
 class SessionServiceRedisTest {
 
-    static final GenericContainer<?> redis = new GenericContainer<>(DockerImageName.parse("redis/redis-stack:latest"))
-        .withExposedPorts(6379)
-        .withCreateContainerCmdModifier(cmd -> cmd.withHostConfig(
-            new com.github.dockerjava.api.model.HostConfig().withPortBindings(
-                new com.github.dockerjava.api.model.PortBinding(
-                    com.github.dockerjava.api.model.Ports.Binding.bindPort(16379),
-                    new com.github.dockerjava.api.model.ExposedPort(6379)
-                )
-            )
-        ));
+    static final GenericContainer<?> redis = new GenericContainer<>(DockerImageName.parse("redis:latest"));
 
     static class Initializer implements ApplicationContextInitializer<ConfigurableApplicationContext> {
       @Override
       public void initialize(ConfigurableApplicationContext applicationContext) {
+        redis.withExposedPorts(6379);
         redis.start();
         TestPropertyValues.of(
             "spring.data.redis.host=" + redis.getHost(),
@@ -53,16 +45,18 @@ class SessionServiceRedisTest {
 
     @Test
     void sessionLifecycleTest() {
-        Session session = sessionService.createSession();
+        Session session = sessionService.createSession().block();
+        assert session != null;
         assertNotNull(session.getSessionId());
 
-        Optional<Session> retrieved = sessionService.getSession(session.getSessionId());
-        assertTrue(retrieved.isPresent());
-        assertEquals(session.getSessionId(), retrieved.get().getSessionId());
+        Session retrieved = sessionService.getSession(session.getSessionId()).block();
+        assert retrieved != null;
+        assertEquals(session.getSessionId(), retrieved.getSessionId());
 
-        assertTrue(sessionService.sessionExists(session.getSessionId()));
+        assertEquals(Boolean.TRUE, sessionService.sessionExists(session.getSessionId()).block());
 
-        int count = sessionService.getSessionCount();
-        assertTrue(count >= 1);
+        Optional<Integer> count = sessionService.getSessionCount().blockOptional();
+        assert count.isPresent();
+        assertTrue(count.get() >= 1);
     }
 }

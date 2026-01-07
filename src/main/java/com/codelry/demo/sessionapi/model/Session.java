@@ -4,12 +4,11 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 public class Session {
-    private UUID sessionId;
+    private UUID sessionId = UUID.randomUUID();
     private LocalDateTime createdAt;
     private LocalDateTime lastAccessedAt;
 
     public Session() {
-        this.sessionId = UUID.randomUUID();
         this.createdAt = LocalDateTime.now();
         this.lastAccessedAt = LocalDateTime.now();
     }
