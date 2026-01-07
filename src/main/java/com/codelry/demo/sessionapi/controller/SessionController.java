@@ -48,7 +48,7 @@ public class SessionController {
                 .defaultIfEmpty(ResponseEntity.notFound().build());
         } catch (IllegalArgumentException e) {
             logger.warn("Invalid UUID format provided: {}", sessionId);
-            throw e;
+            return Mono.just(ResponseEntity.badRequest().build());
         }
     }
 }

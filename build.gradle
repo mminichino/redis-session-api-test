@@ -647,6 +647,7 @@ tasks.register('dockerClean', Exec) {
 }
 
 tasks.register('tagImageVersion', Exec) {
+    dependsOn buildDockerImage
     group = 'docker'
     description = 'Tag image'
 
@@ -672,6 +673,7 @@ tasks.register('tagImage', Exec) {
 }
 
 tasks.register('pushImageVersion', Exec) {
+    dependsOn tagImage
     group = 'docker'
     description = 'Push image'
 
