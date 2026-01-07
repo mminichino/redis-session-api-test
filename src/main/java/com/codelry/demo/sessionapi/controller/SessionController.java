@@ -8,9 +8,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 @RestController
@@ -27,29 +27,28 @@ public class SessionController {
     }
 
     @PostMapping
-    public ResponseEntity<Map<String, String>> createSession() {
-        Session session = sessionService.createSession();
-        Map<String, String> response = Map.of("sessionId", session.getSessionId().toString());
-        logger.info("Successfully created session: {}", session.getSessionId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    public Mono<ResponseEntity<Map<String, String>>> createSession() {
+        return sessionService.createSession()
+            .map(session -> {
+                Map<String, String> response = Map.of("sessionId", session.getSessionId().toString());
+                logger.info("Successfully created session: {}", session.getSessionId());
+                return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            });
     }
 
     @GetMapping("/{sessionId}")
-    public ResponseEntity<Session> getSession(@PathVariable String sessionId) {
+    public Mono<ResponseEntity<Session>> getSession(@PathVariable String sessionId) {
         try {
             UUID uuid = UUID.fromString(sessionId);
-            Optional<Session> session = sessionService.getSession(uuid);
-            
-            if (session.isPresent()) {
-                logger.info("Successfully retrieved session: {}", sessionId);
-                return ResponseEntity.ok(session.get());
-            } else {
-                logger.debug("Session not found: {}", sessionId);
-                return ResponseEntity.notFound().build();
-            }
+            return sessionService.getSession(uuid)
+                .map(session -> {
+                    logger.info("Successfully retrieved session: {}", sessionId);
+                    return ResponseEntity.ok(session);
+                })
+                .defaultIfEmpty(ResponseEntity.notFound().build());
         } catch (IllegalArgumentException e) {
             logger.warn("Invalid UUID format provided: {}", sessionId);
-            throw e;
+            return Mono.just(ResponseEntity.badRequest().build());
         }
     }
 }

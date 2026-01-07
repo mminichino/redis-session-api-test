@@ -5,8 +5,6 @@
       <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
         <collectionProp name="Arguments.arguments"/>
       </elementProp>
-      <boolProp name="TestPlan.functional_mode">false</boolProp>
-      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
     </TestPlan>
     <hashTree>
       <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Client Group">
@@ -36,6 +34,7 @@
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
             <collectionProp name="Arguments.arguments"/>
           </elementProp>
+          <stringProp name="HTTPSampler.implementation">HttpClient4</stringProp>
         </HTTPSamplerProxy>
         <hashTree>
           <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Session ID Extractor">
@@ -45,7 +44,7 @@
             <stringProp name="JSONPostProcessor.defaultValues">NOT_FOUND</stringProp>
           </JSONPostProcessor>
           <hashTree/>
-          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Session Create Response Assertion">
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Session Create Response Assertion" enabled="true">
             <collectionProp name="Asserion.test_strings">
               <stringProp name="49587">201</stringProp>
             </collectionProp>
@@ -55,7 +54,7 @@
             <intProp name="Assertion.test_type">8</intProp>
           </ResponseAssertion>
           <hashTree/>
-          <JSONPathAssertion guiclass="JSONPathAssertionGui" testclass="JSONPathAssertion" testname="Create JSON Assertion">
+          <JSONPathAssertion guiclass="JSONPathAssertionGui" testclass="JSONPathAssertion" testname="Create JSON Assertion" enabled="true">
             <stringProp name="JSON_PATH">$.sessionId</stringProp>
             <stringProp name="EXPECTED_VALUE"></stringProp>
             <boolProp name="JSONVALIDATION">false</boolProp>
@@ -66,15 +65,15 @@
           <hashTree/>
           <UniformRandomTimer guiclass="UniformRandomTimerGui" testclass="UniformRandomTimer" testname="Uniform Random Timer" enabled="true">
             <stringProp name="ConstantTimer.delay">0</stringProp>
-            <stringProp name="RandomTimer.range">100</stringProp>
+            <stringProp name="RandomTimer.range">50</stringProp>
           </UniformRandomTimer>
           <hashTree/>
         </hashTree>
-        <LoopController guiclass="LoopControlPanel" testclass="LoopController" testname="Get Controller" enabled="true">
+        <LoopController guiclass="LoopControlPanel" testclass="LoopController" testname="Get Controller">
           <stringProp name="LoopController.loops">${__Random(1,10)}</stringProp>
         </LoopController>
         <hashTree>
-          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Get Session Request" enabled="true">
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Get Session Request">
             <intProp name="HTTPSampler.connect_timeout">10000</intProp>
             <intProp name="HTTPSampler.response_timeout">10000</intProp>
             <stringProp name="HTTPSampler.domain">${__P(host,localhost)}</stringProp>
@@ -87,6 +86,7 @@
             <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
               <collectionProp name="Arguments.arguments"/>
             </elementProp>
+            <stringProp name="HTTPSampler.implementation">HttpClient4</stringProp>
           </HTTPSamplerProxy>
           <hashTree>
             <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Session Get Response Assertion" enabled="true">
