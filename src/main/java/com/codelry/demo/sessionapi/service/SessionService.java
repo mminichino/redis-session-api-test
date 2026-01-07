@@ -74,6 +74,7 @@ public class SessionService {
         logger.debug("Attempting to retrieve session {} from Redis", sessionId);
         String key = SESSION_KEY_PREFIX + sessionId.toString();
 
+        Timer.Sample sample = Timer.start(meterRegistry);
         return reactiveRedisTemplate.opsForHash().entries(key)
             .collectMap(Map.Entry::getKey, Map.Entry::getValue)
             .flatMap(entries -> {
@@ -91,6 +92,8 @@ public class SessionService {
                     .thenReturn(session)
                     .doOnSuccess(s -> logger.info("Successfully retrieved and updated session {}", sessionId));
             })
+            .doFinally(signalType -> sample.stop(meterRegistry.timer("session.operation.duration",
+                "operation", "get", "status", signalType.toString())))
             .doOnError(e -> logger.error("Failed to retrieve session {}", sessionId, e));
     }
 
