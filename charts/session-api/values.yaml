@@ -15,6 +15,6 @@ runner:
 redisHost: ""
 redisPassword: ""
 redisPort: "12000"
-clientType: "lettuce"
 replicas: 1
 servicePort: 8080
+openshift: false

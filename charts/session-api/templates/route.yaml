@@ -1,0 +1,18 @@
+{{- if .Values.openshift }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: session-api-route
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: session-api
+spec:
+  to:
+    kind: Service
+    name: session-api-service
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+  wildcardPolicy: None
+{{- end }}

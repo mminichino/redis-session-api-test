@@ -11,4 +11,3 @@ data:
   REDIS_DATABASE: "0"
   SPRING_PROFILES_ACTIVE: "kubernetes"
   JAVA_OPTS: "-Xmx512m -Xms256m -Dspring.profiles.active=kubernetes"
-  REDIS_CLIENT_TYPE: "{{ .Values.clientType }}"
