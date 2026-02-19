@@ -17,4 +17,7 @@ redisPassword: ""
 redisPort: "12000"
 replicas: 1
 servicePort: 8080
-openshift: false
+
+ingress:
+  route: false
+  lb: false
