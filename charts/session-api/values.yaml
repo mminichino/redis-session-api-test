@@ -2,13 +2,13 @@
 
 sessionApi:
   image:
-    repository: mminichino/redis-session-api-test
+    repository: docker.io/mminichino/redis-session-api-test
     tag: ""
     pullPolicy: Always
 
 runner:
   image:
-    repository: mminichino/java-runner
+    repository: docker.io/mminichino/java-runner
     tag: ""
     pullPolicy: Always
 
