@@ -652,11 +652,12 @@ tasks.register('tagImageVersion', Exec) {
     description = 'Tag image'
 
     def imageName = project.findProperty('imageName') ?: project.name
+    def imageTag = project.findProperty('imageTag') ?: project.version
     def registryDomain = project.findProperty('registry') ?: 'mminichino'
 
     commandLine 'docker', 'tag',
-            "${imageName}:${project.version}",
-            "${registryDomain}/${imageName}:${project.version}"
+            "${imageName}:${imageTag}",
+            "${registryDomain}/${imageName}:${imageTag}"
 }
 
 tasks.register('tagImage', Exec) {
@@ -665,10 +666,11 @@ tasks.register('tagImage', Exec) {
     description = 'Tag image'
 
     def imageName = project.findProperty('imageName') ?: project.name
+    def imageTag = project.findProperty('imageTag') ?: project.version
     def registryDomain = project.findProperty('registry') ?: 'mminichino'
 
     commandLine 'docker', 'tag',
-            "${imageName}:${project.version}",
+            "${imageName}:${imageTag}",
             "${registryDomain}/${imageName}:latest"
 }
 
@@ -678,9 +680,10 @@ tasks.register('pushImageVersion', Exec) {
     description = 'Push image'
 
     def imageName = project.findProperty('imageName') ?: project.name
+    def imageTag = project.findProperty('imageTag') ?: project.version
     def registryDomain = project.findProperty('registry') ?: 'mminichino'
 
-    commandLine 'docker', 'push', "${registryDomain}/${imageName}:${project.version}"
+    commandLine 'docker', 'push', "${registryDomain}/${imageName}:${imageTag}"
 }
 
 tasks.register('pushImage', Exec) {

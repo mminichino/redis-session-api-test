@@ -16,10 +16,10 @@ RUN apt-get update && apt-get install -y \
     jq \
     && rm -rf /var/lib/apt/lists/*
 
-RUN wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip \
-    && unzip -q gradle-8.5-bin.zip -d /opt \
-    && mv /opt/gradle-8.5 $GRADLE_HOME \
-    && rm gradle-8.5-bin.zip
+RUN wget -q https://services.gradle.org/distributions/gradle-8.14.3-bin.zip \
+    && unzip -q gradle-8.14.3-bin.zip -d /opt \
+    && mv /opt/gradle-8.14.3 $GRADLE_HOME \
+    && rm gradle-8.14.3-bin.zip
 
 RUN wget -q https://dlcdn.apache.org/jmeter/binaries/apache-jmeter-5.6.3.tgz \
     && tar -xzf apache-jmeter-5.6.3.tgz \
