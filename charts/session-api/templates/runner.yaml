@@ -20,5 +20,12 @@ spec:
       restartPolicy: Always
       containers:
         - name: java-runner
-          image: "{{ .Values.runner.image.repository }}:{{ .Values.runner.image.tag | default .Chart.AppVersion }}"
+          image: "{{ .Values.runner.image.repository }}:{{ .Values.runner.image.tag }}"
           imagePullPolicy: {{ .Values.runner.image.pullPolicy }}
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "4000m"

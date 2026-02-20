@@ -9,13 +9,13 @@ sessionApi:
 runner:
   image:
     repository: docker.io/mminichino/java-runner
-    tag: ""
+    tag: "2.0.1"
     pullPolicy: Always
 
 redisHost: ""
 redisPassword: ""
 redisPort: "12000"
-replicas: 1
+replicas: 4
 servicePort: 8080
 
 ingress:
