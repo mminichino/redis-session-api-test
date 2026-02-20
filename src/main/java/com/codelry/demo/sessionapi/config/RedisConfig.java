@@ -2,8 +2,12 @@ package com.codelry.demo.sessionapi.config;
 
 import io.lettuce.core.ClientOptions;
 import io.lettuce.core.SslOptions;
+import io.lettuce.core.metrics.CommandLatencyRecorder;
+import io.lettuce.core.metrics.MicrometerCommandLatencyRecorder;
+import io.lettuce.core.metrics.MicrometerOptions;
 import io.lettuce.core.resource.ClientResources;
 import io.lettuce.core.resource.DefaultClientResources;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,8 +79,21 @@ public class RedisConfig {
     private Duration timeout;
 
     @Bean(destroyMethod = "shutdown")
-    public ClientResources clientResources() {
-        return DefaultClientResources.create();
+    public ClientResources clientResources(PrometheusMeterRegistry meterRegistry) {
+        MicrometerOptions options = MicrometerOptions.builder()
+            .histogram(true)
+            .targetPercentiles(new double[]{0.50, 0.90, 0.95, 0.99})
+            .maxLatency(Duration.ofSeconds(5))
+            .minLatency(Duration.ofMillis(1))
+            .build();
+
+        CommandLatencyRecorder recorder = new MicrometerCommandLatencyRecorder(meterRegistry, options);
+
+        return DefaultClientResources.builder()
+            .ioThreadPoolSize(16)
+            .computationThreadPoolSize(16)
+            .commandLatencyRecorder(recorder)
+            .build();
     }
 
     @Bean
