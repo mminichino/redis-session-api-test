@@ -14,7 +14,7 @@ public class NettyConfig {
   @Bean
   public ReactorResourceFactory reactorResourceFactory() {
     ReactorResourceFactory factory = new ReactorResourceFactory();
-    factory.setUseGlobalResources(true);
+    factory.setUseGlobalResources(false);
     factory.setLoopResources(LoopResources.create("http-nio", 4, 16, true));
     ConnectionProvider connectionProvider = ConnectionProvider.builder("connection-pool")
         .maxConnections(512)
