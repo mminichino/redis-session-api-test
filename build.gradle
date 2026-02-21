@@ -246,7 +246,7 @@ tasks.register('runJMeterTestCustom', Exec) {
     
     def testFile = project.findProperty('testFile') ?: jmeterTestFile
     def resultsFile = project.findProperty('resultsFile') ?: jmeterResultsFile
-    def threads = project.findProperty('threads') ?: '32'
+    def threads = project.findProperty('threads') ?: '16'
     def rampUp = project.findProperty('rampUp') ?: '10'
     def duration = project.findProperty('duration') ?: '300'
     def host = project.findProperty('host') ?: 'localhost'
@@ -290,7 +290,7 @@ tasks.register('runJMeterTestParameterized', Exec) {
 
     def host = project.findProperty('host') ?: 'localhost'
     def port = project.findProperty('port') ?: '8080'
-    def threads = project.findProperty('threads') ?: '32'
+    def threads = project.findProperty('threads') ?: '16'
     def rampUp = project.findProperty('rampUp') ?: '10'
     def duration = project.findProperty('duration') ?: '300'
     def testFile = project.findProperty('testFile') ?: jmeterTestFile
