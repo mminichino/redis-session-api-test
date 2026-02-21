@@ -3,6 +3,26 @@ entries:
   session-api:
   - apiVersion: v2
     appVersion: 2.0.2
+    created: "2026-02-21T00:45:06.392301627Z"
+    description: Basic session API using Redis
+    digest: 993b9086f1c9629f4f0b3162a1383a80b36c16c54593f83449276e300c34976c
+    home: https://github.com/mminichino/redis-session-api-test
+    keywords:
+    - session-api
+    - rest
+    - redis
+    maintainers:
+    - name: Michael Minichino
+      url: https://github.com/mminichino/redis-session-api-test
+    name: session-api
+    sources:
+    - https://github.com/mminichino/redis-session-api-test
+    type: application
+    urls:
+    - https://github.com/mminichino/redis-session-api-test/releases/download/session-api-2.0.6/session-api-2.0.6.tgz
+    version: 2.0.6
+  - apiVersion: v2
+    appVersion: 2.0.2
     created: "2026-02-20T23:32:35.552319282Z"
     description: Basic session API using Redis
     digest: 6a161a41defeea70b727d06a64c806ad58e77e9baa1cabdb3eae2c43df798e3b
@@ -121,4 +141,4 @@ entries:
     urls:
     - https://github.com/mminichino/redis-session-api-test/releases/download/session-api-2.0.0/session-api-2.0.0.tgz
     version: 2.0.0
-generated: "2026-02-20T23:32:35.552351492Z"
+generated: "2026-02-21T00:45:06.392328978Z"
