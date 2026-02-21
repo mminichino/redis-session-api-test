@@ -25,37 +25,31 @@
 ./gradlew pushImage
 ```
 
+### Deploy to kubernetes
+```sh
+helm repo add redis-session-api-test https://mminichino.github.io/redis-session-api-test
+```
+```sh
+helm repo update
+```
+```sh
+helm install session-api redis-session-api-test/session-api -n session-api --create-namespace --set redisHost=redb.usc1-demo.svc.cluster.local --set redisPassword=password  --set metrics=true
+```
+```sh
+kubectl exec -it java-runner-76f567d67c-djk87 -n java-runner -- /bin/bash
+```
+
 ### Run test
 ```sh
-./gradlew jmeterTestSuite -Phost=localhost -Pport=8080
+./gradlew jmeterTestSuite -Phost=session-api-service.session-api.svc.cluster.local -Pthreads=32
 ```
 
 ### Run test with additional parameters
 ```sh
-./gradlew jmeterTestSuite -Phost=localhost -Pport=8080 -Pthreads=50 -Pduration=600
+./gradlew jmeterTestSuite -Phost=session-api-service.session-api.svc.cluster.local -Pthreads=64 -Pduration=600
 ```
 
-### Deploy to kubernetes
-Edit the Redis host and port in the config map, and password in the secret via `kubectl` once deployed.
-```sh
-kubectl apply -f session-api-namespace.yaml
-```
-```sh
-kubectl apply -f spring-api-configmap.yaml
-```
-```sh
-kubectl apply -f spring-api-secret.yaml
-```
-```sh
-kubectl apply -f session-api-deployment.yaml
-```
-To deploy the test runner:
-```sh
-kubectl apply -f runner-namespace.yaml
-```
-```sh
-kubectl apply -f runner-deployment.yaml
-```
-```sh
-kubectl exec -it java-runner-76f567d67c-djk87 -n java-runner -- /bin/bash
+### Run the test external to kubernetes (via ingress, load balancer or route)
+```shell
+./gradlew jmeterTestSuite -Phost=session-api.apps.demo.example.com -Pport=80
 ```
